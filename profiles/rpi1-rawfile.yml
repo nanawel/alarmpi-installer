@@ -1,0 +1,19 @@
+alarm_image:
+  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
+  filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
+storage:
+  type: rawfile
+  image_file:
+    name: alarmpi.img
+    size_mb: 8192
+  partitions:
+    boot:
+      #path: <dynamic with losetup>
+      size: 100M
+      type: fat32
+        mountpoint: ./.mountpoints/rpi1/boot
+    root:
+      #path: <dynamic with losetup>
+      size: 100%
+      type: ext4
+        mountpoint: ./.mountpoints/rpi1/root

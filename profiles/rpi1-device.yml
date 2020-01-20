@@ -1,0 +1,21 @@
+alarm_image:
+  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
+  filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
+storage:
+  type: device
+  partitions:
+    boot:
+      # Example only! Replace "sdz" by the name of the SD card in the system
+      path: /dev/sdz1
+      size: 100M
+      type: fat32
+      mountpoint: ./.mountpoints/rpi1/boot
+    root:
+      # Example only! Replace "sdz" by the name of the SD card in the system
+      path: /dev/sdz2
+      size: 100%
+      type: ext4
+      mountpoint: ./.mountpoints/rpi1/root
+mountpoints:
+  boot: ./.mountpoints/rpi1/boot
+  root: ./.mountpoints/rpi1/root
