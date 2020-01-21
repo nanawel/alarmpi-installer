@@ -10,7 +10,7 @@ storage:
     boot:
       #path: <dynamic with losetup>
       size: 100M
-      type: fat32
+      type: vfat
         mountpoint: ./.mountpoints/rpi1/boot
     root:
       #path: <dynamic with losetup>

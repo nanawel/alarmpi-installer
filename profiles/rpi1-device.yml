@@ -8,7 +8,7 @@ storage:
       # Example only! Replace "sdz" by the name of the SD card in the system
       path: /dev/sdz1
       size: 100M
-      type: fat32
+      type: vfat
       mountpoint: ./.mountpoints/rpi1/boot
     root:
       # Example only! Replace "sdz" by the name of the SD card in the system

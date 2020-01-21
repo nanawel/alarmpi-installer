@@ -5,12 +5,12 @@ storage:
   type: rawfile
   image_file:
     name: alarmpi1.img
-    size_mb: 1024
+    size_mb: 2048
   partitions:
     boot:
       #path: <dynamic with losetup>
       size: 100M
-      type: fat32
+      type: vfat
       mountpoint: ./.mountpoints/rpi1/boot
     root:
       #path: <dynamic with losetup>

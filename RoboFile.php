@@ -8,6 +8,19 @@ class RoboFile extends \Robo\Tasks
     const DEVICE_TYPE_DEVICE    = 'device';
     const DEVICE_TYPE_PARTITION = 'partition';
 
+    const REQUIREMENTS = [
+        'bsdtar',
+        'dd',
+        'losetup',
+        'mkfs',
+        'mount',
+        'parted',
+        'sh',
+        'sudo',
+        'sync',
+        'wget'
+    ];
+
     /** @var string[] */
     protected $loadedDeviceConfigs = [];
 
@@ -53,12 +66,7 @@ class RoboFile extends \Robo\Tasks
 
         if (!$opts['skip-cleanup']) {
             $this->say('Cleaning up (unmounting all filesystems)...');
-            // TODO
-            $this->storageUnmount($profile);
-            if ($this->config('storage.type') == self::STORAGE_TYPE_RAWFILE) {
-                $this->storageImageLoopUnmount($profile);
-            }
-            $this->say('Cleaning up finished successfully.');
+            $this->cleanup($profile, ['unmount-only' => true]);
         }
 
         $this->yell('Finished!', null, 'green');
@@ -68,21 +76,8 @@ class RoboFile extends \Robo\Tasks
      * @throws \Robo\Exception\AbortTasksException
      */
     public function requirementsCheck() {
-        $mandatory = [
-            'bsdtar',
-            'dd',
-            'losetup',
-            'mkfs',
-            'mount',
-            'parted',
-            'sudo',
-            'sync',
-            'wget'
-        ];
-        $optional = [];
-
         $missing = [];
-        foreach ($mandatory as $bin) {
+        foreach (self::REQUIREMENTS as $bin) {
             system("command -v $bin > /dev/null", $rc);
             if ($rc != 0) {
                 $missing[] = $bin;
@@ -90,12 +85,6 @@ class RoboFile extends \Robo\Tasks
         }
         if ($missing) {
             $this->abort(sprintf('Missing required command(s): %s', implode(', ', $missing)));
-        }
-        foreach ($optional as $bin) {
-            system("command -v $bin > /dev/null", $rc);
-            if ($rc != 0) {
-                $this->say("<comment>Missing optional command '$bin'</comment>");
-            }
         }
         $this->say('<info>Requirements OK!</info>');
     }
@@ -156,13 +145,13 @@ class RoboFile extends \Robo\Tasks
             ->exec(sprintf(
                 'parted --script %s mkpart primary %s 2048s %s',
                 $filename,
-                $this->config('storage.partitions.boot.type'),
+                self::getPartitionType($this->config('storage.partitions.boot.type')),
                 $this->config('storage.partitions.boot.size')
             ))
             ->exec(sprintf(
                 'parted --script %s mkpart primary %s %s %s',
                 $filename,
-                $this->config('storage.partitions.root.type'),
+                self::getPartitionType($this->config('storage.partitions.root.type')),
                 $this->config('storage.partitions.boot.size'),
                 $this->config('storage.partitions.root.size')
             ))
@@ -273,10 +262,11 @@ class RoboFile extends \Robo\Tasks
 
     /**
      * @param string $profile
+     * @param array $opts
      * @return Robo\Result
      * @throws \Robo\Exception\AbortTasksException
      */
-    public function storageFormat($profile) {
+    public function storageFormat($profile, $opts = ['force' => false]) {
         $this->header('Format storage device');
 
         $this->_init($profile);
@@ -284,45 +274,64 @@ class RoboFile extends \Robo\Tasks
         /** @var \Robo\Task\Base\ExecStack $collection */
         $collection = $this->collectionBuilder()->taskExecStack();
 
+        $formatted = [];
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
-            if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
-                $additionalMessage = $this->config('storage.image_file')
-                    ? ' Use "robo storage:image-loop-mount" to mount the image file on a loop device first.'
-                    : '';
-                $this->abort(sprintf(
-                    'Cannot format partition "%s": missing "path" in configuration.%s',
+            $partitionInfo = $this->_getPartitionOrDeviceInfo($partitionConfig['path']);
+            $format = true;
+            if ($partitionInfo['fs_type'] == $partitionConfig['type']) {
+                $answer = $this->ask(sprintf(
+                    'Partition "%s" already exists with filesystem %s (size = %d MB), format anyway? (y/N)',
                     $partitionName,
-                    $additionalMessage
+                    $partitionInfo['fs_type'],
+                    $partitionInfo['size_mb']
                 ));
+                $format = strtolower($answer) == 'y';
             }
 
-            if ($mountpoints = $this->_getPartitionOrDeviceMountpoints($partitionConfig['path'])) {
-                $this->say(sprintf(
-                    '<error>Cannot format partition "%s" at %s: mountpoint(s) active:</error>',
-                    $partitionName,
+            if ($format) {
+                if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
+                    $additionalMessage = $this->config('storage.image_file')
+                        ? ' Use "robo storage:image-loop-mount" to mount the image file on a loop device first.'
+                        : '';
+                    $this->abort(sprintf(
+                        'Cannot format partition "%s": missing "path" in configuration.%s',
+                        $partitionName,
+                        $additionalMessage
+                    ));
+                }
+
+                if ($mountpoints = $this->_getPartitionOrDeviceMountpoints($partitionConfig['path'])) {
+                    $this->say(sprintf(
+                        '<error>Cannot format partition "%s" at %s: mountpoint(s) active:</error>',
+                        $partitionName,
+                        $partitionConfig['path']
+                    ));
+                    foreach ($mountpoints as $mountpoint) {
+                        $this->say("<error>  * $mountpoint</error>");
+                    }
+                    $this->say('<error>Use "robo storage:unmount" to unmount first.</error>');
+                    $this->abort();
+                }
+
+                $collection->exec(sprintf(
+                    'sudo mkfs.%s %s %s',
+                    $partitionConfig['type'],
+                    ($opts['force'] ? '-F' : ''),
                     $partitionConfig['path']
                 ));
-                foreach ($mountpoints as $mountpoint) {
-                    $this->say("<error>  * $mountpoint</error>");
-                }
-                $this->say('<error>Use "robo storage:unmount" to unmount first.</error>');
-                $this->abort();
+                $formatted[] = $partitionConfig['path'];
             }
-
-            $collection->exec(sprintf(
-                'sudo mkfs.%s %s %s',
-                self::getMkfsFormat($partitionConfig['type']),
-                ($this->config('options.no-interaction') ? '-F' : ''),
-                $partitionConfig['path']
-            ));
         }
 
-        $result = $collection->run();
-        if ($result->wasSuccessful()) {
-            $this->say(sprintf(
-                '<info>The partitions of the device %s have been formated successfully.</info>',
-                $this->config('storage.device')
-            ));
+        $result = null;
+        if ($formatted) {
+            $result = $collection->run();
+            if ($result->wasSuccessful()) {
+                $this->say(sprintf(
+                    '<info>The partitions of the device %s have been formated successfully.</info>',
+                    $this->config('storage.device')
+                ));
+            }
         }
 
         return $result;
@@ -349,6 +358,7 @@ class RoboFile extends \Robo\Tasks
         }
         /** @var \Robo\Task\Base\ExecStack $execStack */
         $execStack = $collection->taskExecStack();
+        $mounted = [];
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
             if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
                 $additionalMessage = $this->config('storage.type') == self::STORAGE_TYPE_RAWFILE
@@ -362,7 +372,7 @@ class RoboFile extends \Robo\Tasks
             }
 
             if (!in_array(
-                $partitionConfig['mountpoint'],
+                realpath($partitionConfig['mountpoint']),
                 $this->_getPartitionOrDeviceMountpoints($partitionConfig['path'])
             )) {
                 $execStack->exec(sprintf(
@@ -370,15 +380,20 @@ class RoboFile extends \Robo\Tasks
                     $partitionConfig['path'],
                     $partitionConfig['mountpoint']
                 ));
+                $mounted[] = $partitionName;
             }
         }
 
-        $result = $collection->run();
-        if ($result->wasSuccessful()) {
-            $this->say(sprintf(
-                '<info>The partitions of the device %s have been mounted successfully.</info>',
-                $this->config('storage.device')
-            ));
+        $result = null;
+        if ($mounted) {
+            $result = $collection->run();
+            if ($result->wasSuccessful()) {
+                $this->say(sprintf(
+                    '<info>The partition(s) [%s] of the device %s has/have been mounted successfully.</info>',
+                    implode(', ', $mounted),
+                    $this->config('storage.device')
+                ));
+            }
         }
 
         return $result;
@@ -519,12 +534,12 @@ class RoboFile extends \Robo\Tasks
         /** @var \Robo\Task\Base\ExecStack $execStack */
         $collection->taskExecStack()
             ->exec(sprintf(
-                'bsdtar -xpf %s -C %s',
+                "sudo sh -c 'bsdtar -xpf %s -C %s'",
                 $this->config('alarm_image.filename'),
                 $this->config('storage.partitions.root.mountpoint')
             ))
             ->exec(sprintf(
-                'mv %s/boot/* %s',
+                'sudo mv %s/boot/* %s',
                 $this->config('storage.partitions.root.mountpoint'),
                 $this->config('storage.partitions.boot.mountpoint')
             ))
@@ -662,6 +677,27 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * @param string $partitionOrDevice
+     * @return array
+     */
+    protected function _getPartitionOrDeviceInfo($partitionOrDevice) {
+        exec("lsblk $partitionOrDevice -o PATH,FSTYPE,SIZE -b -n", $output);
+
+        $info = [];
+        foreach (array_filter($output) as $line) {
+            list($dev, $fstype, $size) = preg_split('#\s+#', $line);
+            $info = [
+                'device'  => $dev,
+                'fs_type' => $fstype,
+                'size'    => $size,
+                'size_mb' => $size / 1024 / 1024
+            ];
+        }
+
+        return $info;
+    }
+
+    /**
      * @param string $profile
      * @param bool $forceLoadProfile
      * @throws \Robo\Exception\AbortTasksException
@@ -759,14 +795,14 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
-     * @param string $partitionType
+     * @param string $fsType
      * @return string
      */
-    protected static function getMkfsFormat($partitionType) {
+    protected static function getPartitionType($fsType) {
         $mapping = [
-            'fat32' => 'vfat'
+            'vfat' => 'fat32'
         ];
 
-        return $mapping[$partitionType] ?? $partitionType;
+        return $mapping[$fsType] ?? $fsType;
     }
 }
