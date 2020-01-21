@@ -264,6 +264,8 @@ class RoboFile extends \Robo\Tasks
                     implode(', ', $unmountDevices)
                 ));
             }
+        } else {
+            $this->say(sprintf('No loop device to unmount for image file %s.', $filename));
         }
 
         return $result;
@@ -283,6 +285,17 @@ class RoboFile extends \Robo\Tasks
         $collection = $this->collectionBuilder()->taskExecStack();
 
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
+            if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
+                $additionalMessage = $this->config('storage.image_file')
+                    ? ' Use "robo storage:image-loop-mount" to mount the image file on a loop device first.'
+                    : '';
+                $this->abort(sprintf(
+                    'Cannot format partition "%s": missing "path" in configuration.%s',
+                    $partitionName,
+                    $additionalMessage
+                ));
+            }
+
             if ($mountpoints = $this->_getPartitionOrDeviceMountpoints($partitionConfig['path'])) {
                 $this->say(sprintf(
                     '<error>Cannot format partition "%s" at %s: mountpoint(s) active:</error>',
@@ -338,11 +351,11 @@ class RoboFile extends \Robo\Tasks
         $execStack = $collection->taskExecStack();
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
             if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
-                $additionalMessage = $this->config('storage.image_file')
+                $additionalMessage = $this->config('storage.type') == self::STORAGE_TYPE_RAWFILE
                     ? ' Use "robo storage:image-loop-mount" to mount the image file on a loop device first.'
                     : '';
                 $this->abort(sprintf(
-                    'Cannot mount partition "%s": missing path/device.%s',
+                    'Cannot mount partition "%s": missing "path" in configuration.%s',
                     $partitionName,
                     $additionalMessage
                 ));
@@ -373,10 +386,10 @@ class RoboFile extends \Robo\Tasks
 
     /**
      * @param string $profile
-     * @return \Robo\Result
+     * @return \Robo\Result|null
      * @throws \Robo\Exception\AbortTasksException
      */
-    public function storageUnmount($profile) {
+    public function storageUnmount($profile, $opts = ['ignore-missing' => false]) {
         $this->header('Unmount storage from local directories');
 
         $this->_init($profile);
@@ -386,51 +399,43 @@ class RoboFile extends \Robo\Tasks
 
         /** @var \Robo\Task\Base\ExecStack $execStack */
         $execStack = $collection->taskExecStack();
+        $unmounted = [];
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
-            $execStack->exec(sprintf('sudo umount %s', $partitionConfig['path']));
+            if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
+                if ($opts['ignore-missing']) {
+                    continue;
+                }
+
+                $additionalMessage = $this->config('storage.type') == self::STORAGE_TYPE_RAWFILE
+                    ? ' Use "robo storage:image-loop-mount" to mount the image file on a loop device first.'
+                    : '';
+                $this->abort(sprintf(
+                    'Cannot unmount partition "%s": missing "path" in configuration.%s',
+                    $partitionName,
+                    $additionalMessage
+                ));
+            }
+
+            if ($this->_getPartitionOrDeviceMountpoints($partitionConfig['path'])) {
+                $execStack->exec(sprintf('sudo umount %s', $partitionConfig['path']));
+                $unmounted[] = $partitionConfig['path'];
+            }
         }
 
-        $result = $collection->run();
-        if ($result->wasSuccessful()) {
-            $this->say(sprintf(
-                '<info>The partitions of the device %s have been unmounted successfully.</info>',
-                $this->config('storage.device')
-            ));
-        }
-
-        return $result;
-    }
-
-    /**
-     * @return \Robo\Result
-     * @throws \Robo\Exception\AbortTasksException
-     */
-    public function storagePartitionUnmount($partition) {
-        $this->header('Unmount partition/device');
-
-        /** @var \Robo\Task\Base\ExecStack $collection */
-        $collection = $this->collectionBuilder()->taskExecStack();
-
-        $umountRequired = false;
-        foreach ($this->_getPartitionOrDeviceMountpoints($partition) as $mountpoint) {
-            $collection->exec(sprintf('sudo umount %s', $mountpoint));
-            $umountRequired = true;
-        }
-
-        if (!$umountRequired) {
-            $this->say(sprintf(
-                '<comment>Partition %s is not currently mounted. Nothing to do.</comment>',
-                $partition
-            ));
-            $result = Robo\Result::success($collection);
-        } else {
+        $result = null;
+        if ($unmounted) {
             $result = $collection->run();
             if ($result->wasSuccessful()) {
                 $this->say(sprintf(
-                    '<info>Partition %s successsfully unmounted.</info>',
-                    $partition
+                    '<info>The partitions of the device %s have been unmounted successfully.</info>',
+                    $this->config('storage.device')
                 ));
             }
+        } else {
+            $this->say(sprintf(
+                'No partition to unmount for device %s.',
+                $this->config('storage.device') ?: '<empty>'
+            ));
         }
 
         return $result;
@@ -446,6 +451,12 @@ class RoboFile extends \Robo\Tasks
         $this->yell('NOT IMPLEMENTED: ' . __FUNCTION__, null, 'red');
     }
 
+    /**
+     * @param string $profile
+     * @param array $opts
+     * @return $this
+     * @throws \Robo\Exception\AbortTasksException
+     */
     public function imageDownload($profile, $opts = ['force' => false]) {
         $this->header('Download Archlinux ARM image file');
 
@@ -481,7 +492,7 @@ class RoboFile extends \Robo\Tasks
 
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
             $finder = \Symfony\Component\Finder\Finder::create();
-            if ($finder->in($partitionConfig['mountpoint'])->hasResults()
+            if ($finder->in($partitionConfig['mountpoint'])->exclude('lost+found')->hasResults()
             ) {
                 if ($opts['force'] || $this->config('options.no-interaction')) {
                     $this->say(sprintf(
@@ -529,62 +540,61 @@ class RoboFile extends \Robo\Tasks
         return $result;
     }
 
-    // ========================================================================
-    //        UTILITIES (not tasks)
-    // ========================================================================
-
-//    /**
-//     * @param string $filename
-//     * @throws \Robo\Exception\AbortTasksException
-//     */
-//    protected function _checkImageMountedOnLoopDevice($filename) {
-//        if ($loopDevices = $this->_getImageLoopDevices($filename)) {
-//            $this->say(sprintf(
-//                '<comment>Image file %s is already mounted on loopback device(s): %s.</comment>',
-//                $filename,
-//                implode(', ', $loopDevices)
-//            ));
-//            if ($this->config('options.no-interaction')) {
-//                $answer = 'y';
-//            } else {
-//                $answer = $this->askDefault('Unmount before proceeding? (y/n)', 'y');
-//            }
-//            if (strtolower($answer) == 'y') {
-//                $this->_unmount($filename);
-//            } else {
-//                $this->abort(sprintf(
-//                    'Image file %s is already mounted on a loopback device(s): %s.',
-//                    $filename,
-//                    implode(', ', $loopDevices)
-//                ));
-//            }
-//        }
-//    }
-
     /**
-     * @param string $partitionOrDevice
+     * @param string $profile
+     * @param array $opts
      * @return \Robo\Result
      * @throws \Robo\Exception\AbortTasksException
      */
-    public function _unmount($partitionOrDevice) {
-        /** @var \Robo\Task\Base\ExecStack $collection */
-        $collection = $this->collectionBuilder()->taskExecStack();
-
-        $unmounted = 0;
-        foreach ($this->_getPartitionOrDeviceMountpoints($partitionOrDevice) as $mountpoint) {
-            $collection->exec(sprintf('sudo umount %s', $mountpoint));
-            $unmounted++;
+    public function cleanup(
+        $profile,
+        $opts = [
+            'unmount-only' => false,
+            'force'        => false
+        ]
+    ) {
+        $this->_init($profile);
+        if ($this->config('storage.device')) {
+            $this->storageUnmount($profile, ['ignore-missing' => true]);
+        }
+        if ($this->config('storage.type') == self::STORAGE_TYPE_RAWFILE) {
+            $this->storageImageLoopUnmount($profile);
         }
 
-        if (!$unmounted) {
-            $result = Robo\Result::success($collection);
-        } else {
-            $result = $collection->run();
-        }
-        $result->mergeData(['unmounted' => $unmounted]);
+        $this->say('<info>Storage unmounted successfully.</info>');
 
-        return $result;
+        if (!$opts['unmount-only']) {
+            if (is_file($alarmImage = $this->config('alarm_image.filename'))) {
+                if ($opts['force']
+                    || strtolower($this->ask(sprintf('Delete Archlinux ARM image archive "%s"? (y/N)', $alarmImage))) == 'y'
+                ) {
+                    $this->taskExec('rm')->args($this->config('alarm_image.filename'))->run();
+                    $this->say(sprintf('%s has been deleted.', $this->config('alarm_image.filename')));
+                } else {
+                    $this->say(sprintf('%s left on disk.', $this->config('alarm_image.filename')));
+                }
+            }
+
+            if ($this->config('storage.type') == self::STORAGE_TYPE_RAWFILE
+                && is_file($rawImage = $this->config('storage.image_file.name'))
+            ) {
+                if ($opts['force']
+                    || strtolower($this->ask(sprintf('Delete raw image file "%s"? (y/N)', $rawImage))) == 'y'
+                ) {
+                    $this->taskExec('rm')->args($this->config('storage.image_file.name'))->run();
+                    $this->say(sprintf('%s has been deleted.', $this->config('storage.image_file.name')));
+                } else {
+                    $this->say(sprintf('%s left on disk.', $this->config('storage.image_file.name')));
+                }
+            }
+        }
+
+        $this->say('<info>Cleanup completed successfully.</info>');
     }
+
+    // ========================================================================
+    //        UTILITIES (not tasks)
+    // ========================================================================
 
     /**
      * @param string $imageFile
@@ -612,7 +622,7 @@ class RoboFile extends \Robo\Tasks
     protected function _populateConfigLoopDevicePath($profile) {
         $this->_init($profile);
 
-        if (!$this->config('storage.image_file.name')) {
+        if ($this->config('storage.type') != self::STORAGE_TYPE_RAWFILE) {
             $this->say(sprintf("Profile %s does not use a loop device.", $profile));
 
             return;
@@ -629,38 +639,6 @@ class RoboFile extends \Robo\Tasks
             }
         }
     }
-
-//    /**
-//     * @param string $partition
-//     * @throws \Robo\Exception\AbortTasksException
-//     */
-//    protected function _checkPartitionMounted($partition) {
-//        if (!$partition) {
-//            throw new InvalidArgumentException('Partition name cannot be empty.');
-//        }
-//
-//        if ($mountpoints = $this->_getPartitionOrDeviceMountpoints($partition)) {
-//            $this->say(sprintf(
-//                '<comment>Partition %s is already mounted at %s.</comment>',
-//                $partition,
-//                implode(', ', $mountpoints)
-//            ));
-//            if ($this->config('options.no-interaction')) {
-//                $answer = 'y';
-//            } else {
-//                $answer = $this->askDefault('Unmount before proceeding? (y/n)', 'y');
-//            }
-//            if (strtolower($answer) == 'y') {
-//                $this->storagePartitionUnmount($partition);
-//            } else {
-//                $this->abort(sprintf(
-//                    '<error>Partition %s is already mounted at %s.</error>',
-//                    $partition,
-//                    explode(', ', $mountpoints)
-//                ));
-//            }
-//        }
-//    }
 
     /**
      * @param string $imageFile
