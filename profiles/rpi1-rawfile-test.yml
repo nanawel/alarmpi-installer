@@ -4,16 +4,18 @@ alarm_image:
 storage:
   type: rawfile
   image_file:
-    name: alarmpi1.img
+    name: /data/qemu-vms/alarm-rpi1/alarmpi1.img
     size_mb: 2048
   partitions:
     boot:
       #path: <dynamic with losetup>
+      internal_path: /boot
       size: 100M
       type: vfat
       mountpoint: ./.mountpoints/rpi1/boot
     root:
       #path: <dynamic with losetup>
+      internal_path: /
       size: 100%
       type: ext4
       mountpoint: ./.mountpoints/rpi1/root
