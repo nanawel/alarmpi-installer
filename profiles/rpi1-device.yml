@@ -8,16 +8,14 @@ storage:
       # Example only! Replace "sdz" by the name of the SD card in the system
       path: /dev/sdz1
       internal_path: /boot
-      size: 100M
-      type: vfat
+      end: 100MiB
+      fs_type: vfat
       mountpoint: ./.mountpoints/rpi1/boot
     root:
       # Example only! Replace "sdz" by the name of the SD card in the system
       path: /dev/sdz2
       internal_path: /
-      size: 100%
-      type: ext4
+      start: 100MiB
+      end: 100%
+      fs_type: ext4
       mountpoint: ./.mountpoints/rpi1/root
-mountpoints:
-  boot: ./.mountpoints/rpi1/boot
-  root: ./.mountpoints/rpi1/root

@@ -10,12 +10,13 @@ storage:
     boot:
       #path: <dynamic with losetup>
       internal_path: /boot
-      size: 100M
-      type: vfat
-        mountpoint: ./.mountpoints/rpi1/boot
+      end: 100MiB
+      fs_type: vfat
+      mountpoint: ./.mountpoints/rpi1/boot
     root:
       #path: <dynamic with losetup>
       internal_path: /
-      size: 100%
-      type: ext4
-        mountpoint: ./.mountpoints/rpi1/root
+      start: 100MiB
+      end: 100%
+      fs_type: ext4
+      mountpoint: ./.mountpoints/rpi1/root

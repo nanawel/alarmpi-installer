@@ -1,10 +1,10 @@
 alarm_image:
-  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
-  filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
+  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-2-latest.tar.gz
+  filename: tmp/ArchLinuxARM-rpi-2-latest.tar.gz
 storage:
   type: rawfile
   image_file:
-    name: /data/qemu-vms/alarm-rpi1/alarmpi1.img
+    name: /data/qemu-vms/alarm-rpi2/alarmpi2.img
     size_mb: 4096
   partitions:
     boot:
@@ -12,11 +12,11 @@ storage:
       internal_path: /boot
       end: 100MiB
       fs_type: vfat
-      mountpoint: ./.mountpoints/rpi1/boot
+      mountpoint: ./.mountpoints/rpi2/boot
     root:
       #path: <dynamic with losetup>
       internal_path: /
       start: 100MiB
       end: 100%
       fs_type: ext4
-      mountpoint: ./.mountpoints/rpi1/root
+      mountpoint: ./.mountpoints/rpi2/root
