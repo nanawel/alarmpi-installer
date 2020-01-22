@@ -12,6 +12,7 @@ class RoboFile extends \Robo\Tasks
         'bsdtar',
         'dd',
         'losetup',
+        'lsblk',
         'mkfs',
         'mount',
         'parted',
@@ -19,6 +20,19 @@ class RoboFile extends \Robo\Tasks
         'sudo',
         'sync',
         'wget'
+    ];
+    const REQUIRED_CONFIG = [
+        'alarm_image.url',
+        'alarm_image.filename',
+        'storage.type',
+        'storage.partitions.boot.internal_path',
+        'storage.partitions.boot.end',
+        'storage.partitions.boot.fs_type',
+        'storage.partitions.boot.mountpoint',
+        'storage.partitions.root.internal_path',
+        'storage.partitions.root.start',
+        'storage.partitions.root.fs_type',
+        'storage.partitions.root.mountpoint',
     ];
 
     /** @var string[] */
@@ -114,17 +128,21 @@ class RoboFile extends \Robo\Tasks
         $this->header('Create image file');
         $this->_init($profile);
 
+        if ($this->config('storage.type') != self::STORAGE_TYPE_RAWFILE) {
+            $this->abort("The profile \"$profile\" does not use a raw image as device.");
+        }
+
         $filename = $this->config('storage.image_file.name');
 
         if (!$opts['force'] && file_exists($filename)) {
-            $this->say(sprintf('<comment>Image file %s already exists. Skipping init.</comment>', $filename));
+            $this->say(sprintf('<comment>Image file "%s" already exists. Skipping init.</comment>', $filename));
             return null;
         }
 
-        if ($devices = $this->_getImageLoopDevices($filename)) {
+        if ($loopDevices = $this->_getImageLoopDevices($filename)) {
             $this->say(sprintf(
                 '<error>Image file is already mounted on loop device(s): %s</error>',
-                implode(', ', $devices)
+                implode(', ', $loopDevices)
             ));
             $this->say("<error>Unmount it with \"robo storage:loop-unmount $profile\" before proceeding.</error>");
             $this->abort();
@@ -136,17 +154,13 @@ class RoboFile extends \Robo\Tasks
                 'dd if=/dev/zero of=%s bs=1048576 count=%d',
                 $filename,
                 $this->config('storage.image_file.size_mb')
-            ))
-            ->exec(sprintf(
-                'parted --script %s mklabel msdos',
-                $filename
             ));
-        $this->appendMakePartitionsTasks($builder, $filename, $this->config('storage.partitions'))
+        $this->_appendMakePartitionsTasks($builder, $filename, $this->config('storage.partitions'))
             ->rollback($this->taskExec('rm')->args($this->config('storage.image_file.name')));
 
         $result = $builder->run();
         if ($result->wasSuccessful()) {
-            $this->say(sprintf('<info>Image file ready at %s.</info>', $filename));
+            $this->say(sprintf('<info>Image file ready at "%s".</info>', $filename));
             if ($this->io()->isVerbose()) {
                 exec(sprintf('parted %s print 2>/dev/null', $filename), $output);
                 $this->say(implode("\n", $output));
@@ -157,27 +171,65 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
-     * @param \Robo\Collection\CollectionBuilder $collectionBuilder
-     * @param string $device
-     * @param array $partitionsConfig
+     * @param string $profile
+     * @param array $opts
+     * @throws \Robo\Exception\AbortTasksException
      */
-    protected function appendMakePartitionsTasks(
-        \Robo\Collection\CollectionBuilder $collectionBuilder,
-        $device,
-        array $partitionsConfig
-    ) {
-        foreach ($partitionsConfig as $partitionName => $partitionConfig) {
-            $collectionBuilder->exec(sprintf(
-                'parted -a optimal --script %s mkpart %s %s %s %s',
-                $device,
-                $partitionConfig['type'] ?? 'primary',
-                self::getPartitionTableFsType($partitionConfig['fs_type']),
-                $partitionName == 'boot' ? '2048s' : $partitionConfig['start'],
-                $partitionConfig['end'] ?? '100%'
-            ));
+    public function storageDeviceInit($profile, $opts = ['force' => false]) {
+        $this->header('Init device');
+        $this->_init($profile);
+
+        if ($this->config('storage.type') != self::STORAGE_TYPE_DEVICE) {
+            $this->abort("The profile \"$profile\" does not use a proper device type.");
         }
 
-        return $collectionBuilder;
+        $device = $this->config('storage.device');
+
+        if ($mountpoints = $this->_getPartitionOrDeviceMountpoints($device)) {
+            $this->say("<error>Device \"$device\" is already mounted at path(s):</error>");
+            foreach ($mountpoints as $mp) {
+                $this->say("<error>- $mp</error>");
+            }
+            $this->say("<error>Unmount it with \"robo storage:unmount $profile\" before proceeding.</error>");
+            $this->abort();
+        }
+
+        if (count($partitionsInfo = $this->_getPartitionOrDeviceInfo($device)) > 1) {
+            $this->io()->table(
+                array_keys(current($partitionsInfo)),
+                $partitionsInfo
+            );
+
+            if ($opts['force'] || $this->config('options.no-interaction')) {
+                $this->say(sprintf(
+                    "<comment>The device \"%s\" does not seem to be empty.</comment>",
+                    $device
+                ));
+            } else {
+                $answer = $this->ask(sprintf(
+                    "The device \"%s\" does not seem to be empty. Continue anyway? (y/N)",
+                    $device
+                ));
+                if (strtolower($answer) != 'y') {
+                    $this->abort();
+                }
+            }
+        }
+
+        /** @var \Robo\Collection\CollectionBuilder $builder */
+        $builder = $this->collectionBuilder()->taskExecStack();
+        $this->_appendMakePartitionsTasks($builder, $device, $this->config('storage.partitions'));
+
+        $result = $builder->run();
+        if ($result->wasSuccessful()) {
+            $this->say(sprintf('<info>Device ready at "%s".</info>', $device));
+            if ($this->io()->isVerbose()) {
+                exec(sprintf('parted %s print 2>/dev/null', $device), $output);
+                $this->say(implode("\n", $output));
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -193,7 +245,7 @@ class RoboFile extends \Robo\Tasks
 
         if ($loopDevices = $this->_getImageLoopDevices($filename)) {
             $this->say(sprintf(
-                '<comment>Image file %s is already mounted on: %s. Skipping.</comment>',
+                '<comment>Image file "%s" is already mounted on: "%s". Skipping.</comment>',
                 $filename,
                 implode(', ', $loopDevices)
             ));
@@ -209,10 +261,10 @@ class RoboFile extends \Robo\Tasks
             ->run();
         if ($result->wasSuccessful()) {
             $device = $result->getMessage();
-            $this->_populateConfigLoopDevicePath($profile);
+            $this->_onContextChange($profile);
 
             $this->say(sprintf(
-                '<info>Image file %s successsfully mounted on loop device %s</info>',
+                '<info>Image file "%s" successsfully mounted on loop device "%s"</info>',
                 $filename,
                 $device
             ));
@@ -287,7 +339,7 @@ class RoboFile extends \Robo\Tasks
 
         $formatted = [];
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
-            $partitionInfo = $this->_getPartitionOrDeviceInfo($partitionConfig['path']);
+            $partitionInfo = current($this->_getPartitionOrDeviceInfo($partitionConfig['path']));
             $format = true;
             if ($partitionInfo['fs_type'] == $partitionConfig['fs_type']) {
                 $answer = $this->ask(sprintf(
@@ -474,16 +526,6 @@ class RoboFile extends \Robo\Tasks
     /**
      * @param string $profile
      * @param array $opts
-     */
-    public function storageDeviceInit($profile, $opts = ['force' => false]) {
-        $this->header('Init device');
-
-        $this->yell('NOT IMPLEMENTED: ' . __FUNCTION__, null, 'red');
-    }
-
-    /**
-     * @param string $profile
-     * @param array $opts
      * @return $this
      * @throws \Robo\Exception\AbortTasksException
      */
@@ -526,16 +568,16 @@ class RoboFile extends \Robo\Tasks
             ) {
                 if ($opts['force'] || $this->config('options.no-interaction')) {
                     $this->say(sprintf(
-                        "<comment>The partition '%s' (mounted at %s) does not seem to be empty.</comment>",
+                        "<comment>The partition \"%s\" (mounted at %s) does not seem to be empty.</comment>",
                         $partitionName,
                         $partitionConfig['mountpoint']
                     ));
                 } else {
-                    $answer = $this->askDefault(sprintf(
-                        "The partition '%s' (mounted at %s) does not seem to be empty. Continue anyway? (y/n)",
+                    $answer = $this->ask(sprintf(
+                        "The partition \"%s\" (mounted at %s) does not seem to be empty. Continue anyway? (y/N)",
                         $partitionName,
                         $partitionConfig['mountpoint']
-                    ), 'y');
+                    ));
                     if (strtolower($answer) != 'y') {
                         $this->abort();
                     }
@@ -560,6 +602,7 @@ class RoboFile extends \Robo\Tasks
             ))
             ->exec('sync');
 
+        $this->say("Extracting archive, this may take some time...");
         $result = $collection->run();
         if ($result->wasSuccessful()) {
             $this->say(sprintf(
@@ -684,6 +727,37 @@ class RoboFile extends \Robo\Tasks
     // ========================================================================
 
     /**
+     * @param \Robo\Collection\CollectionBuilder $collectionBuilder
+     * @param string $device
+     * @param array $partitionsConfig
+     */
+    protected function _appendMakePartitionsTasks(
+        \Robo\Collection\CollectionBuilder $collectionBuilder,
+        $device,
+        array $partitionsConfig
+    ) {
+        // Partition table
+        $collectionBuilder->exec(sprintf(
+            'sudo parted --script %s mklabel msdos',
+            $device
+        ));
+
+        // Partitions
+        foreach ($partitionsConfig as $partitionName => $partitionConfig) {
+            $collectionBuilder->exec(sprintf(
+                'sudo parted -a optimal --script %s mkpart %s %s %s %s',
+                $device,
+                $partitionConfig['type'] ?? 'primary',
+                self::getPartitionTableFsType($partitionConfig['fs_type']),
+                $partitionName == 'boot' ? '2048s' : $partitionConfig['start'],
+                $partitionConfig['end'] ?? '100%'
+            ));
+        }
+
+        return $collectionBuilder;
+    }
+
+    /**
      * @param string $imageFile
      * @return string[]
      */
@@ -710,7 +784,7 @@ class RoboFile extends \Robo\Tasks
         $this->_init($profile);
 
         if ($this->config('storage.type') != self::STORAGE_TYPE_RAWFILE) {
-            $this->say(sprintf("Profile %s does not use a loop device.", $profile));
+            $this->say("Profile \"$profile\" does not use a loop device.");
 
             return;
         }
@@ -718,10 +792,20 @@ class RoboFile extends \Robo\Tasks
         if ($loopDevices = $this->_getImageLoopDevices($this->config('storage.image_file.name'))) {
             $loopDevice = current($loopDevices);    // Take the first match
             $this->setConfig('storage.device', $loopDevice);
+        }
+    }
 
+    /**
+     * @param string $profile
+     * @throws \Robo\Exception\AbortTasksException
+     */
+    protected function _populateConfigPartitionPaths($profile) {
+        $this->_init($profile);
+
+        if ($device = $this->config('storage.device')) {
             $partitionIdx = 1;
             foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
-                $this->setConfig("storage.partitions.$partitionName.path", "{$loopDevice}p{$partitionIdx}");
+                $this->setConfig("storage.partitions.$partitionName.path", "{$device}p{$partitionIdx}");
                 $partitionIdx++;
             }
         }
@@ -753,23 +837,32 @@ class RoboFile extends \Robo\Tasks
      * @return array
      */
     protected function _getPartitionOrDeviceInfo($partitionOrDevice) {
-        exec("lsblk $partitionOrDevice -o PATH,FSTYPE,SIZE -b -n", $output);
+        exec("lsblk $partitionOrDevice -o PATH,FSTYPE,SIZE -b -n 2>/dev/null", $output, $rc);
 
         $info = [];
-        foreach (array_filter($output) as $line) {
-            $data = preg_split('#\s+#', $line);
-            if (count($data) == 2) {    // Not yet formatted
-                list($dev, $size) = $data;
-                $fstype = null;
-            } else {
-                list($dev, $fstype, $size) = $data;
-            }
-            $info = [
-                'device'  => $dev,
-                'fs_type' => $fstype,
-                'size'    => $size,
-                'size_mb' => $size / 1024 / 1024
+        if ($rc != 0) {
+            $info[$partitionOrDevice] = [
+                'device'  => $partitionOrDevice,
+                'fs_type' => null,
+                'size'    => null,
+                'size_mb' => null
             ];
+        } else {
+            foreach (array_filter($output) as $line) {
+                $data = preg_split('#\s+#', $line);
+                if (count($data) == 2) {    // Not yet formatted
+                    list($dev, $size) = $data;
+                    $fstype = null;
+                } else {
+                    list($dev, $fstype, $size) = $data;
+                }
+                $info[$dev] = [
+                    'device'  => $dev,
+                    'fs_type' => $fstype,
+                    'size'    => $size,
+                    'size_mb' => $size / 1024 / 1024
+                ];
+            }
         }
 
         return $info;
@@ -806,16 +899,32 @@ class RoboFile extends \Robo\Tasks
         if ($forceLoadProfile || !($this->loadedDeviceConfigs[$profile] ?? false)) {
             \Robo\Robo::loadConfiguration($files);
             $this->loadedDeviceConfigs[$profile] = true;
-            $this->_onTargetConfigLoaded($profile);
+            $this->_onContextChange($profile);
             $this->say("<info>Configuration loaded for profile: $profile</info>");
+
+            $missingConfig = [];
+            foreach (self::REQUIRED_CONFIG as $path) {
+                if (empty($this->config($path))) {
+                    $missingConfig[] = $path;
+                }
+            }
+            if ($missingConfig) {
+                $this->say("<error>Missing required configurations for profile \"$profile\":</error>");
+                foreach ($missingConfig as $path) {
+                    $this->say("<error>- $path</error>");
+                }
+                $this->abort();
+            }
         }
     }
 
     /**
      * @param string $profile
+     * @throws \Robo\Exception\AbortTasksException
      */
-    protected function _onTargetConfigLoaded($profile) {
+    protected function _onContextChange($profile) {
         $this->_populateConfigLoopDevicePath($profile);
+        $this->_populateConfigPartitionPaths($profile);
     }
 
     /**

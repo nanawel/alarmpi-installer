@@ -1,0 +1,24 @@
+alarm_image:
+  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
+  filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
+storage:
+  type: device
+  device: /dev/loop0
+  partitions:
+    boot:
+      internal_path: /boot
+      end: 100MiB
+      fs_type: vfat
+      mountpoint: ./.mountpoints/rpi1/boot
+    root:
+      internal_path: /
+      start: 100MiB
+      end: 90%
+      fs_type: ext4
+      mountpoint: ./.mountpoints/rpi1/root
+    home:
+      internal_path: /home
+      start: 90%
+      end: 100%
+      fs_type: ext2
+      mountpoint: ./.mountpoints/rpi1/home
