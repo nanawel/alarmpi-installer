@@ -3,18 +3,17 @@ alarm_image:
   filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
 storage:
   type: rawfile
+  #device: <dynamic / do not use>
   image_file:
     name: alarmpi.img
     size_mb: 8192
   partitions:
     boot:
-      #path: <dynamic with losetup>
       internal_path: /boot
       end: 100MiB
       fs_type: vfat
       mountpoint: ./.mountpoints/rpi1/boot
     root:
-      #path: <dynamic with losetup>
       internal_path: /
       start: 100MiB
       end: 100%

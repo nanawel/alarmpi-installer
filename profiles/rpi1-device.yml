@@ -3,17 +3,16 @@ alarm_image:
   filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
 storage:
   type: device
+  # Example only! Replace "sdz" by the name of the SD card in the system
+  device: /dev/sdz
   partitions:
     boot:
-      # Example only! Replace "sdz" by the name of the SD card in the system
-      path: /dev/sdz1
       internal_path: /boot
       end: 100MiB
       fs_type: vfat
       mountpoint: ./.mountpoints/rpi1/boot
     root:
       # Example only! Replace "sdz" by the name of the SD card in the system
-      path: /dev/sdz2
       internal_path: /
       start: 100MiB
       end: 100%
