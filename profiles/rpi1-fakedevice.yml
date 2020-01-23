@@ -4,6 +4,7 @@ alarm_image:
 storage:
   type: device
   device: /dev/loop0
+  internal_device: /dev/sda
   partitions:
     boot:
       internal_path: /boot

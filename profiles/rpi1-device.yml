@@ -5,6 +5,7 @@ storage:
   type: device
   # Example only! Replace "sdz" by the name of the SD card in the system
   device: /dev/sdz
+  #internal_device: /dev/mmcblk0
   partitions:
     boot:
       internal_path: /boot

@@ -3,7 +3,8 @@ alarm_image:
   filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
 storage:
   type: rawfile
-  #device: <dynamic / do not use>
+  #device: <dynamic: do not use>
+  internal_device: /dev/sda
   image_file:
     name: alarmpi.img
     size_mb: 8192

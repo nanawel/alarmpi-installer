@@ -21,6 +21,7 @@ class RoboFile extends \Robo\Tasks
         'sync',
         'wget'
     ];
+
     const REQUIRED_CONFIG = [
         'alarm_image.url',
         'alarm_image.filename',
@@ -58,6 +59,9 @@ class RoboFile extends \Robo\Tasks
         $this->yell('Archlinux ARM Installer for Raspberry Pi', null, 'blue');
 
         $this->_init($profile);
+
+        // Ask sudo password to start sudo session
+        $this->_exec('sudo -v');
 
         switch ($this->config('storage.type')) {
             case self::STORAGE_TYPE_RAWFILE:
@@ -456,7 +460,7 @@ class RoboFile extends \Robo\Tasks
                     $this->config('storage.device')
                 ));
                 foreach ($mounted as $partition => $mp) {
-                    $this->say("$partition: $mp");
+                    $this->say("<info>$partition: $mp</info>");
                 }
             }
         } else {
@@ -640,10 +644,10 @@ class RoboFile extends \Robo\Tasks
 
                 $fstabContent[] = sprintf(
                     $fstabLineTemplate,
-                    "/dev/sda{$partitionIdx}",
+                    sprintf('%sp%d', $this->config('storage.internal_device'), $partitionIdx),
                     $partitionConfig['internal_path'],
                     $partitionConfig['fs_type'],
-                    $partitionConfig['options'] ?? 'defaults,noatime,nodiratime'
+                    $partitionConfig['options'] ?? self::getDefaultFsTabOptions($partitionConfig['fs_type'])
                 );
                 $partitionIdx++;
             }
@@ -799,7 +803,7 @@ class RoboFile extends \Robo\Tasks
      * @param string $profile
      * @throws \Robo\Exception\AbortTasksException
      */
-    protected function _populateConfigPartitionPaths($profile) {
+    protected function _populateDefaultConfig($profile) {
         $this->_init($profile);
 
         if ($device = $this->config('storage.device')) {
@@ -808,6 +812,9 @@ class RoboFile extends \Robo\Tasks
                 $this->setConfig("storage.partitions.$partitionName.path", "{$device}p{$partitionIdx}");
                 $partitionIdx++;
             }
+        }
+        if (!$this->config('storage.internal_device')) {
+            $this->setConfig('storage.internal_device', '/dev/mmcblk0');
         }
     }
 
@@ -924,7 +931,7 @@ class RoboFile extends \Robo\Tasks
      */
     protected function _onContextChange($profile) {
         $this->_populateConfigLoopDevicePath($profile);
-        $this->_populateConfigPartitionPaths($profile);
+        $this->_populateDefaultConfig($profile);
     }
 
     /**
@@ -991,5 +998,19 @@ class RoboFile extends \Robo\Tasks
         ];
 
         return $mapping[$fsType] ?? $fsType;
+    }
+
+    /**
+     * @param string $fsType
+     * @return string
+     */
+    protected static function getDefaultFsTabOptions($fsType) {
+        $mapping = [
+            'ext2' => 'defaults,noatime,nodiratime',
+            'ext3' => 'defaults,noatime,nodiratime',
+            'ext4' => 'defaults,noatime,nodiratime',
+        ];
+
+        return $mapping[$fsType] ?? 'defaults';
     }
 }
