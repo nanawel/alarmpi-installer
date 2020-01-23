@@ -148,17 +148,17 @@ class RoboFile extends \Robo\Tasks
             $this->abort();
         }
 
-        /** @var \Robo\Collection\CollectionBuilder $builder */
-        $builder = $this->collectionBuilder()->taskExecStack()
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder()->taskExecStack()
             ->exec(sprintf(
                 'dd if=/dev/zero of=%s bs=1048576 count=%d',
                 $filename,
                 $this->config('storage.image_file.size_mb')
             ));
-        $this->_appendMakePartitionsTasks($builder, $filename, $this->config('storage.partitions'))
+        $this->_appendMakePartitionsTasks($collectionBuilder, $filename, $this->config('storage.partitions'))
             ->rollback($this->taskExec('rm')->args($this->config('storage.image_file.name')));
 
-        $result = $builder->run();
+        $result = $collectionBuilder->run();
         if ($result->wasSuccessful()) {
             $this->say(sprintf('<info>Image file ready at "%s".</info>', $filename));
             if ($this->io()->isVerbose()) {
@@ -216,11 +216,11 @@ class RoboFile extends \Robo\Tasks
             }
         }
 
-        /** @var \Robo\Collection\CollectionBuilder $builder */
-        $builder = $this->collectionBuilder()->taskExecStack();
-        $this->_appendMakePartitionsTasks($builder, $device, $this->config('storage.partitions'));
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder()->taskExecStack();
+        $this->_appendMakePartitionsTasks($collectionBuilder, $device, $this->config('storage.partitions'));
 
-        $result = $builder->run();
+        $result = $collectionBuilder->run();
         if ($result->wasSuccessful()) {
             $this->say(sprintf('<info>Device ready at "%s".</info>', $device));
             if ($this->io()->isVerbose()) {
@@ -284,8 +284,8 @@ class RoboFile extends \Robo\Tasks
 
         $filename = $this->config('storage.image_file.name');
 
-        /** @var \Robo\Task\Base\ExecStack $collection */
-        $collection = $this->collectionBuilder()->taskExecStack();
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder()->taskExecStack();
 
         $unmountDevices = [];
         foreach ($this->_getImageLoopDevices($filename) as $loopDevice) {
@@ -302,13 +302,13 @@ class RoboFile extends \Robo\Tasks
                 $this->abort();
             }
 
-            $collection->exec("sudo losetup -d $loopDevice");
+            $collectionBuilder->exec("sudo losetup -d $loopDevice");
             $unmountDevices[] = $loopDevice;
         }
 
         $result = null;
         if ($unmountDevices) {
-            $result = $collection->run();
+            $result = $collectionBuilder->run();
             if ($result->wasSuccessful()) {
                 $this->say(sprintf(
                     '<info>Image file %s successsfully unmounted from loop device(s) %s</info>',
@@ -334,8 +334,8 @@ class RoboFile extends \Robo\Tasks
 
         $this->_init($profile);
 
-        /** @var \Robo\Task\Base\ExecStack $collection */
-        $collection = $this->collectionBuilder()->taskExecStack();
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder()->taskExecStack();
 
         $formatted = [];
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
@@ -376,7 +376,7 @@ class RoboFile extends \Robo\Tasks
                     $this->abort();
                 }
 
-                $collection->exec(sprintf(
+                $collectionBuilder->exec(sprintf(
                     'sudo mkfs.%s %s %s',
                     $partitionConfig['fs_type'],
                     ($opts['force'] ? '-F' : ''),
@@ -388,7 +388,7 @@ class RoboFile extends \Robo\Tasks
 
         $result = null;
         if ($formatted) {
-            $result = $collection->run();
+            $result = $collectionBuilder->run();
             if ($result->wasSuccessful()) {
                 $this->say(sprintf(
                     '<info>The partitions of the device %s have been formated successfully.</info>',
@@ -411,16 +411,16 @@ class RoboFile extends \Robo\Tasks
 
         $this->_init($profile);
 
-        /** @var \Robo\Collection\CollectionBuilder $collection */
-        $collection = $this->collectionBuilder();
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder();
 
         /** @var \Robo\Task\Filesystem\FilesystemStack $fsStack */
-        $fsStack = $collection->taskFileSystemStack();
+        $fsStack = $collectionBuilder->taskFileSystemStack();
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
             $fsStack->mkdir($partitionConfig['mountpoint'], 0775);
         }
         /** @var \Robo\Task\Base\ExecStack $execStack */
-        $execStack = $collection->taskExecStack();
+        $execStack = $collectionBuilder->taskExecStack();
         $mounted = [];
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
             if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
@@ -449,7 +449,7 @@ class RoboFile extends \Robo\Tasks
 
         $result = null;
         if ($mounted) {
-            $result = $collection->run();
+            $result = $collectionBuilder->run();
             if ($result->wasSuccessful()) {
                 $this->say(sprintf(
                     '<info>The following partitions of the device %s have been mounted successfully:</info>',
@@ -476,11 +476,8 @@ class RoboFile extends \Robo\Tasks
 
         $this->_init($profile);
 
-        /** @var \Robo\Collection\CollectionBuilder $collection */
-        $collection = $this->collectionBuilder();
-
-        /** @var \Robo\Task\Base\ExecStack $execStack */
-        $execStack = $collection->taskExecStack();
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder()->taskExecStack();
         $unmounted = [];
         foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
             if (!isset($partitionConfig['path']) || empty($partitionConfig['path'])) {
@@ -499,14 +496,14 @@ class RoboFile extends \Robo\Tasks
             }
 
             if ($this->_getPartitionOrDeviceMountpoints($partitionConfig['path'])) {
-                $execStack->exec(sprintf('sudo umount %s', $partitionConfig['path']));
+                $collectionBuilder->exec(sprintf('sudo umount %s', $partitionConfig['path']));
                 $unmounted[] = $partitionConfig['path'];
             }
         }
 
         $result = null;
         if ($unmounted) {
-            $result = $collection->run();
+            $result = $collectionBuilder->run();
             if ($result->wasSuccessful()) {
                 $this->say(sprintf(
                     '<info>The partitions of the device %s have been unmounted successfully.</info>',
@@ -585,25 +582,28 @@ class RoboFile extends \Robo\Tasks
             }
         }
 
-        /** @var \Robo\Collection\CollectionBuilder $collection */
-        $collection = $this->collectionBuilder();
-
-        /** @var \Robo\Task\Base\ExecStack $execStack */
-        $collection->taskExecStack()
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder()->taskExecStack()
             ->exec(sprintf(
                 "sudo sh -c 'bsdtar -xpf %s -C %s'",
                 $this->config('alarm_image.filename'),
                 $this->config('storage.partitions.root.mountpoint')
-            ))
-            ->exec(sprintf(
-                'sudo mv %s/boot/* %s',
-                $this->config('storage.partitions.root.mountpoint'),
-                $this->config('storage.partitions.boot.mountpoint')
-            ))
-            ->exec('sync');
+            ));
+
+        foreach ($this->config('storage.partitions') as $partitionName => $partitionConfig) {
+            if ($partitionConfig['internal_path'] != '/') {
+                $collectionBuilder->exec(sprintf(
+                    'sudo mv %s%s/* %s',    // FIXME Does not handle hidden files
+                    $this->config('storage.partitions.root.mountpoint'),
+                    $partitionConfig['internal_path'],
+                    $this->config("storage.partitions.{$partitionName}.mountpoint")
+                ));
+            }
+        }
+        $collectionBuilder->exec('sync');
 
         $this->say("Extracting archive, this may take some time...");
-        $result = $collection->run();
+        $result = $collectionBuilder->run();
         if ($result->wasSuccessful()) {
             $this->say(sprintf(
                 '<info>Archlinux ARM system image copied successfully.</info>'
