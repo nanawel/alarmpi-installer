@@ -143,6 +143,10 @@ class RoboFile extends \Robo\Tasks
             return null;
         }
 
+        if (!is_writable($filename) && !is_writable(dirname($filename))) {
+            $this->abort(sprintf('Image path "%s" is not writeable.', $filename));
+        }
+
         if ($loopDevices = $this->_getImageLoopDevices($filename)) {
             $this->say(sprintf(
                 '<error>Image file is already mounted on loop device(s): %s</error>',
@@ -265,7 +269,6 @@ class RoboFile extends \Robo\Tasks
             ->run();
         if ($result->wasSuccessful()) {
             $device = $result->getMessage();
-            $this->_onContextChange($profile);
 
             $this->say(sprintf(
                 '<info>Image file "%s" successsfully mounted on loop device "%s"</info>',
@@ -273,6 +276,7 @@ class RoboFile extends \Robo\Tasks
                 $device
             ));
         }
+        $this->_onContextChange($profile);
 
         return $result;
     }
@@ -766,16 +770,20 @@ class RoboFile extends \Robo\Tasks
      * @return string[]
      */
     protected function _getImageLoopDevices($imageFile) {
-        exec('losetup -a', $output);
+        $imageFile = realpath($imageFile);
 
         $devices = [];
-        foreach ($output as $line) {
-            list($device) = explode(':', $line);
-            if (strpos($line, realpath($imageFile)) !== false) {
-                $devices[] = $device;
+        if ($imageFile) {
+            exec('losetup -a', $output);
+
+            foreach ($output as $line) {
+                list($device) = explode(':', $line);
+                if (strpos($line, $imageFile) !== false) {
+                    $devices[] = $device;
+                }
             }
+            sort($devices);
         }
-        sort($devices);
 
         return $devices;
     }
