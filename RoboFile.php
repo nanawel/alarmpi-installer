@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * AlarmPi-Installer
+ *
+ * @author Anaël O. <nanawel.NOSPAM@gmail.com>
+ */
 class RoboFile extends \Robo\Tasks
 {
     const STORAGE_TYPE_RAWFILE  = 'rawfile';
@@ -40,6 +45,8 @@ class RoboFile extends \Robo\Tasks
     protected $loadedDeviceConfigs = [];
 
     /**
+     * Build an image using the provided <profile>
+     *
      * @param string $profile
      * @param array $opts
      * @throws \Robo\Exception\AbortTasksException
@@ -93,6 +100,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Check requirements
+     *
      * @throws \Robo\Exception\AbortTasksException
      */
     public function requirementsCheck() {
@@ -110,6 +119,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Dump configuration for given <profile>
+     *
      * @param string|null $profile
      * @throws \Robo\Exception\AbortTasksException
      */
@@ -119,10 +130,12 @@ class RoboFile extends \Robo\Tasks
         }
 
         $this->say('Current configuration:');
-        $this->say(json_encode(\Robo\Robo::config()->export(), JSON_PRETTY_PRINT));
+        $this->say(json_encode(\Robo\Robo::config()->export(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
 
     /**
+     * Initialize the raw image used as storage for given <profile> (if any)
+     *
      * @param string $profile
      * @param array $opts
      * @return \Robo\Result|null
@@ -179,6 +192,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Create partitions on device for given <profile>
+     *
      * @param string $profile
      * @param array $opts
      * @throws \Robo\Exception\AbortTasksException
@@ -241,6 +256,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Mount image file on loop device for given <profile>
+     *
      * @param string $profile
      * @return \Robo\Result
      * @throws \Robo\Exception\AbortTasksException
@@ -282,6 +299,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Unmount image from loop device for given <profile>
+     *
      * @param string $profile
      * @return \Robo\Result|null
      * @throws \Robo\Exception\AbortTasksException
@@ -332,6 +351,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Format partitions on target storage for given <profile>
+     *
      * @param string $profile
      * @param array $opts
      * @return Robo\Result
@@ -409,6 +430,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Mount all storage partitions to local directories for given <profile>
+     *
      * @param string $profile
      * @return \Robo\Result|null
      * @throws \Robo\Exception\AbortTasksException
@@ -475,6 +498,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Unmount all storage partitions from local directories for given <profile>
+     *
      * @param string $profile
      * @return \Robo\Result|null
      * @throws \Robo\Exception\AbortTasksException
@@ -529,6 +554,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Download Alarm image for given <profile> (if needed)
+     *
      * @param string $profile
      * @param array $opts
      * @return $this
@@ -557,6 +584,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Extract Alarm image content to target storage for given <profile>
+     *
      * @param string $profile
      * @param array $opts
      * @return \Robo\Result
@@ -622,6 +651,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Performs post-extract tasks for given <profile> (update target /etc/fstab)
+     *
      * @param string $profile
      * @throws \Robo\Exception\AbortTasksException
      */
@@ -683,6 +714,8 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
+     * Cleanup environment for given <profile> (unmount all and delete Alarm image only after confirmation)
+     *
      * @param string $profile
      * @param array $opts
      * @return \Robo\Result

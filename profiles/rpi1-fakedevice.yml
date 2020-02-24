@@ -1,3 +1,6 @@
+# AlarmPi-Installer - RPi1 Sample Configuration with a preexisting loop-device
+# Advanced configuration with 3 partitions: /boot, /home and /
+#
 alarm_image:
   url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
   filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
@@ -14,12 +17,12 @@ storage:
     root:
       internal_path: /
       start: 100MiB
-      end: 90%
+      end: 60%
       fs_type: ext4
       mountpoint: ./.mountpoints/rpi1/root
     home:
       internal_path: /home
-      start: 90%
+      start: 60%
       end: 100%
       fs_type: ext2
       mountpoint: ./.mountpoints/rpi1/home

@@ -1,3 +1,6 @@
+# AlarmPi-Installer - RPi1 Sample Configuration with QEMU-compatible rawfile #1
+# Default configuration with 2 partitions: /boot and /
+#
 alarm_image:
   url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
   filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
@@ -6,17 +9,17 @@ storage:
   #device: <dynamic: do not use>
   internal_device: /dev/sda
   image_file:
-    name: alarmpi.img
+    name: rawfiles/rpi1-rawfile-sample1.img
     size_mb: 8192
   partitions:
     boot:
       internal_path: /boot
       end: 100MiB
       fs_type: vfat
-      mountpoint: ./.mountpoints/rpi1/boot
+      mountpoint: ./.mountpoints/rpi1-rawfile-sample1/boot
     root:
       internal_path: /
       start: 100MiB
       end: 100%
       fs_type: ext4
-      mountpoint: ./.mountpoints/rpi1/root
+      mountpoint: ./.mountpoints/rpi1-rawfile-sample1/root
