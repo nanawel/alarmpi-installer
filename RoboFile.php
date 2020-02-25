@@ -1028,9 +1028,11 @@ class RoboFile extends \Robo\Tasks
      */
     protected static function getDeviceType($device) {
         switch (1) {
-            case preg_match('#^/dev/\w+\d+$#', $device):
+            case preg_match('#^/dev/\w{3}$#', $device):
+            case preg_match('#^/dev/loop\d+$#', $device):
                 return self::DEVICE_TYPE_DEVICE;
-            case preg_match('#^/dev/\w+\d+p\d+$#', $device):
+            case preg_match('#^/dev/\w{3}\d+$#', $device):
+            case preg_match('#^/dev/loop\d+p\d+$#', $device):
                 return self::DEVICE_TYPE_PARTITION;
             default:
                 throw new InvalidArgumentException("Invalid device identifier: $device");
