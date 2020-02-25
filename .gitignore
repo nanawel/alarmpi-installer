@@ -1,4 +1,5 @@
 .idea/
 .mountpoints/
 *.img
+profiles/*.local.yml
 tmp/
