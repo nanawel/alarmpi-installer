@@ -4,8 +4,17 @@ Archlinux ARM Pi Installer
 This tool aims to ease the creation of an Archlinux ARM storage media for
 Raspberry Pi devices.
 
+In a nutshell it can:
+- partition an SD card according to a given configuration ("profile")
+- format said partitions
+- mount partitions in local directories
+- download official ArchlinuxARM Pi images and extract their content to the right partitions
+- update device's `/etc/fstab` after extraction to reflect the partitions structure
+
 It also provides an easy way to create raw image files that can then be
 used with [QEMU](https://www.qemu.org/).
+
+See [examples](#examples) below and in the [`profiles/`](profiles/) directory.
 
 > **Note:** Only Raspberry Pi 1 & 2 are supported at the moment but new
   profiles can easily be created in the dedicated folder `profiles/`, as
@@ -16,6 +25,11 @@ used with [QEMU](https://www.qemu.org/).
 - Linux system
 - PHP 7+
 - [Robo](https://robo.li/) task runner
+  ```
+  sudo wget https://robo.li/robo.phar -O /usr/local/bin/robo.phar
+  sudo chmod +x /usr/local/bin/robo.phar
+  sudo ln -s /usr/local/bin/robo.phar /usr/local/bin/robo
+  ```
 
 For the rest, run `robo requirements:check` to validate your environment.
 
@@ -76,7 +90,7 @@ Available commands:
 1. Insert the SD card into your reader
 1. Run `dmesg | tail` (or `lsblk` at your convenience) and retrieve the
    name of the newly added device
-1. Edit the configuration and set `device` with the name of your device
+1. Edit the configuration and set `device` to the name of your device
    on the system
 1. Run `build` to prepare the SD card:
     ```shell

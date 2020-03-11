@@ -3,7 +3,7 @@
 /**
  * AlarmPi-Installer
  *
- * @author Anaël O. <nanawel.NOSPAM@gmail.com>
+ * @author Anaël Ollier
  */
 class RoboFile extends \Robo\Tasks
 {
