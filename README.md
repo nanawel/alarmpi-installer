@@ -8,8 +8,11 @@ In a nutshell it can:
 - partition an SD card according to a given configuration ("profile")
 - format said partitions
 - mount partitions in local directories
-- download official ArchlinuxARM Pi images and extract their content to the right partitions
-- update device's `/etc/fstab` after extraction to reflect the partitions structure
+- download official ArchlinuxARM Pi images and extract their content to the
+  right
+  partitions
+- update device's `/etc/fstab` after extraction to reflect the partitions
+  structure
 
 It also provides an easy way to create raw image files that can then be
 used with [QEMU](https://www.qemu.org/).
