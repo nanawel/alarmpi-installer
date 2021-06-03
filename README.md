@@ -5,13 +5,12 @@ This tool aims to ease the creation of an Archlinux ARM storage media for
 Raspberry Pi devices.
 
 In a nutshell it can:
-- partition an SD card according to a given configuration ("profile")
-- format said partitions
-- mount partitions in local directories
-- download official ArchlinuxARM Pi images and extract their content to the
-  right
-  partitions
-- update device's `/etc/fstab` after extraction to reflect the partitions
+- **partition** an SD card according to a given configuration ("profile")
+- **format** said partitions
+- **mount partitions** in local directories
+- **download** official ArchlinuxARM Pi images and extract their content to the
+  right partitions
+- **update** device's `/etc/fstab` after extraction to reflect the partitions
   structure
 
 It also provides an easy way to create raw image files that can then be
@@ -19,7 +18,7 @@ used with [QEMU](https://www.qemu.org/).
 
 See [examples](#examples) below and in the [`profiles/`](profiles/) directory.
 
-> **Note:** Only Raspberry Pi 1 & 2 are supported at the moment but new
+> **Note:** Only Raspberry Pi 1, 2 and 4 are supported at the moment but new
   profiles can easily be created in the dedicated folder `profiles/`, as
   long as the steps stay similar.
 
@@ -30,6 +29,11 @@ See [examples](#examples) below and in the [`profiles/`](profiles/) directory.
   ```shell
   # On Debian-like
   sudo apt install php-cli php-xml
+  ```
+- `bsdtar` command
+  ```shell
+  # On Debian-like (not needed on Archlinux as it's already present by default)
+  sudo apt install libarchive-tools
   ```
 - [Robo](https://robo.li/) task runner
   ```
