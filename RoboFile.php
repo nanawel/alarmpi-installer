@@ -565,16 +565,27 @@ class RoboFile extends \Robo\Tasks
         $this->header('Download Archlinux ARM image file');
 
         $this->_init($profile);
-
         $filename = $this->config('alarm_image.filename');
+
+        /** @var \Robo\Collection\CollectionBuilder $collectionBuilder */
+        $collectionBuilder = $this->collectionBuilder();
+
+        // Create parent dir if missing
+        if (!is_dir($tmpDir = dirname($filename))) {
+            /** @var \Robo\Task\Filesystem\FilesystemStack $fsStack */
+            $fsStack = $collectionBuilder->taskFileSystemStack();
+            $fsStack->mkdir($tmpDir, 0775);
+        }
+
         if ($opts['force'] || !file_exists($filename)) {
-            $this->taskExec('wget')
-                ->args([
-                    $this->config('alarm_image.url'),
-                    '-O',
-                    $filename
-                ])
-                ->run();
+            $collectionBuilder->addTask(
+                $this->taskExec('wget')
+                    ->args([
+                        $this->config('alarm_image.url'),
+                        '-O',
+                        $filename
+                    ])
+            )->run();
         }
         else {
             $this->say(sprintf('<comment>File %s already exists. Skipping download.</comment>', $filename));
