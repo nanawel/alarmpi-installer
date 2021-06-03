@@ -1,0 +1,23 @@
+# AlarmPi-Installer - RPi4 Sample Configuration with real device
+# Default configuration with 2 partitions: /boot and /
+#
+alarm_image:
+  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-4-latest.tar.gz
+  filename: tmp/ArchLinuxARM-rpi-4-latest.tar.gz
+storage:
+  type: device
+  # Example only! Replace "sdz" by the name of the SD card in the system
+  device: /dev/sdz
+  #internal_device: /dev/mmcblk0
+  partitions:
+    boot:
+      internal_path: /boot
+      end: 100MiB
+      fs_type: vfat
+      mountpoint: ./.mountpoints/rpi4-device/boot
+    root:
+      internal_path: /
+      start: 100MiB
+      end: 100%
+      fs_type: ext4
+      mountpoint: ./.mountpoints/rpi4-device/root

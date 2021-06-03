@@ -26,7 +26,11 @@ See [examples](#examples) below and in the [`profiles/`](profiles/) directory.
 ## Requirements
 
 - Linux system
-- PHP 7+
+- PHP 7+ with the `xml` extension
+  ```shell
+  # On Debian-like
+  sudo apt install php-cli php-xml
+  ```
 - [Robo](https://robo.li/) task runner
   ```
   sudo wget https://robo.li/robo.phar -O /usr/local/bin/robo.phar
@@ -88,7 +92,7 @@ Available commands:
 
 **Create a Raspberry Pi 1 SD card with 2 partitions (`/boot` and `/`)**
 
-1. Copy the file `profiles/rpi1-device.yml` to `profiles/my-rpi1.yml`
+1. Copy the file `profiles/rpi1-device.sample.yml` to `profiles/my-rpi1.yml`
    (optional: you might want to tweak other settings too)
 1. Insert the SD card into your reader
 1. Run `dmesg | tail` (or `lsblk` at your convenience) and retrieve the
