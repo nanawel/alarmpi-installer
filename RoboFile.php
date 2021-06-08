@@ -862,7 +862,19 @@ class RoboFile extends \Robo\Tasks
     protected function _populateDefaultConfig($profile) {
         $this->_init($profile);
 
-        if ($device = $this->config('storage.device')) {
+        $device = $origDevice = $this->config('storage.device');
+        if ($device) {
+            if (!$device = realpath($device)) {
+                throw new \InvalidArgumentException('Invalid value for storage.device: ' . $device);
+            }
+
+            // Normalize device path
+            $this->setConfig('storage.device', $device);
+
+            if ($origDevice != $device) {
+                $this->io()->note(sprintf("Device %s has been normalized to %s", $origDevice, $device));
+            }
+
             if (is_numeric(substr($device, -1))) {
                 $device = "{$device}p"; // Trick to handle loop devices
             }
@@ -879,7 +891,7 @@ class RoboFile extends \Robo\Tasks
     }
 
     /**
-     * @param string $imageFile
+     * @param string $partitionOrDevice
      * @return string[]
      */
     protected function _getPartitionOrDeviceMountpoints($partitionOrDevice) {
@@ -1026,7 +1038,7 @@ class RoboFile extends \Robo\Tasks
      * @return void
      */
     protected function setConfig($key, $value, $context = 'default') {
-        if ($context == 'default') {
+        if ($context === 'default') {
             \Robo\Robo::Config()->setDefault($key, $value);
         } else {
             \Robo\Robo::Config()->set($key, $value);
