@@ -18,7 +18,7 @@ used with [QEMU](https://www.qemu.org/).
 
 See [examples](#examples) below and in the [`profiles/`](profiles/) directory.
 
-> **Note:** Only Raspberry Pi 1, 2 and 4 are supported at the moment but new
+> **Note:** Only Raspberry Pi 1, 2, 3 and 4 are supported at the moment but new
   profiles can easily be created in the dedicated folder `profiles/`, as
   long as the steps stay similar.
 

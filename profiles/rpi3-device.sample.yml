@@ -1,0 +1,23 @@
+# AlarmPi-Installer - RPi3 Sample Configuration with real device
+# Default configuration with 2 partitions: /boot and /
+#
+alarm_image:
+  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-armv7-latest.tar.gz
+  filename: tmp/ArchLinuxARM-rpi-armv7-latest.tar.gz
+storage:
+  type: device
+  # Example only! Replace "sdX" by the name of the SD card in the system
+  device: /dev/sdX
+  #internal_device: /dev/mmcblk0
+  partitions:
+    boot:
+      internal_path: /boot
+      end: 100MiB
+      fs_type: vfat
+      mountpoint: ./.mountpoints/rpi3-device/boot
+    root:
+      internal_path: /
+      start: 100MiB
+      end: 100%
+      fs_type: ext4
+      mountpoint: ./.mountpoints/rpi3-device/root
