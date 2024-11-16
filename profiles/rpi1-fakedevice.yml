@@ -2,7 +2,7 @@
 # Advanced configuration with 3 partitions: /boot, /home and /
 #
 alarm_image:
-  url: http://os.archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
+  url: http://tardis.tiny-vps.com/aarm/repos/2022/01/08/os/ArchLinuxARM-rpi-latest.tar.gz
   filename: tmp/ArchLinuxARM-rpi-latest.tar.gz
 storage:
   type: device
